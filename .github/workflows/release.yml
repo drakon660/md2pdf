@@ -50,6 +50,7 @@ jobs:
         run: |
           Copy-Item "convert-md-to-pdf-weasyprint.ps1" -Destination dist/md2pdf/
           Copy-Item "weasyprint-style.css" -Destination dist/md2pdf/
+          Copy-Item "footer.html" -Destination dist/md2pdf/
 
       - name: Create ZIP
         run: |

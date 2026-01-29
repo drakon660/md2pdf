@@ -81,22 +81,15 @@ function Convert-MarkdownToPdf {
     $htmlFile = Join-Path $OutputDir "$fileName.html"
     $pdfFile = Join-Path $OutputDir "$fileName.pdf"
 
-    # CSS files
-    $CssFile = Join-Path $ScriptDir "style.css"
+    # CSS file
     $PrintCssFile = Join-Path $ScriptDir "weasyprint-style.css"
 
     Write-Host "Converting: $MarkdownFile -> $pdfFile" -ForegroundColor Cyan
 
     try {
-        # Step 1: Convert Markdown to HTML with embedded CSS
-        Write-Host "  Step 1: Creating HTML with embedded CSS..." -ForegroundColor Gray
-
-        if (Test-Path $CssFile) {
-            & $ToolPaths.Pandoc $MarkdownFile -f gfm -o $htmlFile --css=$CssFile --standalone --embed-resources
-        } else {
-            Write-Host "  Warning: CSS file not found at $CssFile, creating HTML without custom styling" -ForegroundColor Yellow
-            & $ToolPaths.Pandoc $MarkdownFile -f gfm -o $htmlFile --standalone --embed-resources
-        }
+        # Step 1: Convert Markdown to HTML
+        Write-Host "  Step 1: Creating HTML..." -ForegroundColor Gray
+        & $ToolPaths.Pandoc $MarkdownFile -f gfm -o $htmlFile --standalone --embed-resources
 
         if ($LASTEXITCODE -ne 0) {
             Write-Host "  Error: Pandoc failed to create HTML" -ForegroundColor Red
@@ -149,10 +142,10 @@ try {
     # Check if bundled tools exist
     if (-not (Test-BundledToolsExist -Paths $ToolPaths)) {
         Write-Host ""
-        Write-Host "Bundled tools not found. Ensure the following structure:" -ForegroundColor Yellow
-        Write-Host "  doc_exporter/" -ForegroundColor Yellow
-        Write-Host "    pandoc/pandoc.exe" -ForegroundColor Yellow
-        Write-Host "    weasyprint/weasyprint.exe" -ForegroundColor Yellow
+        Write-Host "Bundled tools not found. Ensure the following structure relative to this script:" -ForegroundColor Yellow
+        Write-Host "  pandoc/pandoc.exe" -ForegroundColor Yellow
+        Write-Host "  weasyprint/weasyprint.exe" -ForegroundColor Yellow
+        Write-Host "  weasyprint-style.css" -ForegroundColor Yellow
         exit 1
     }
 
