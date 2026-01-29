@@ -41,10 +41,24 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Install GTK3 runtime (MSYS2)
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-pango
+            mingw-w64-x86_64-gdk-pixbuf2
+
+      - name: Add GTK to PATH
+        run: |
+          echo "C:\msys64\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
       - name: Build WeasyPrint standalone
         run: |
           pip install weasyprint==${{ env.WEASYPRINT_VERSION }} pyinstaller
-          pyinstaller --onefile --name weasyprint --collect-all weasyprint --hidden-import weasyprint.text.ffi --hidden-import cffi -y $(python -c "import weasyprint; print(weasyprint.__file__)")
+          $entry = python -c "import weasyprint; print(weasyprint.__file__)"
+          pyinstaller --onefile --name weasyprint --collect-all weasyprint --hidden-import weasyprint.text.ffi --hidden-import cffi --add-binary "C:\msys64\mingw64\bin\*.dll;." -y $entry
           Copy-Item "dist/weasyprint.exe" -Destination dist/md2pdf/weasyprint/
 
       - name: Copy scripts and assets
