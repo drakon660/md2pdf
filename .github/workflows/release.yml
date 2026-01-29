@@ -1,8 +1,5 @@
-# This is a basic workflow to help you get started with Actions
+name: Build Release Packages
 
-name: CI
-
-# Controls when the workflow will run
 on:
   release:
     types: [created]
@@ -15,32 +12,272 @@ on:
       weasyprint_version:
         description: 'WeasyPrint version'
         required: true
+        default: '68'
 
-  # Allows you to run this workflow manually from the Actions tab
-  workflow_dispatch:
-  
 env:
-  PANDOC_VERSION: ${{ github.event.inputs.pandoc_version || '3.6.2' }}
-  WEASYPRINT_VERSION: ${{ github.event.inputs.weasyprint_version || '63.1' }}
-
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+  PANDOC_VERSION: ${{ github.event.inputs.pandoc_version || '3.8.3' }}
+  WEASYPRINT_VERSION: ${{ github.event.inputs.weasyprint_version || '68' }}
 jobs:
-  # This workflow contains a single job called "build"
-  build:
-    # The type of runner that the job will run on
-    runs-on: ubuntu-latest
-
-    # Steps represent a sequence of tasks that will be executed as part of the job
+  build-windows:
+    runs-on: windows-latest
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v4
 
-      # Runs a single command using the runners shell
-      - name: Run a one-line script
-        run: echo Hello, world!
-
-      # Runs a set of commands using the runners shell
-      - name: Run a multi-line script
+      - name: Create directories
         run: |
-          echo Add other actions to build,
-          echo test, and deploy your project.
+          New-Item -ItemType Directory -Force -Path dist/md2pdf/pandoc
+          New-Item -ItemType Directory -Force -Path dist/md2pdf/weasyprint
+          New-Item -ItemType Directory -Force -Path dist/md2pdf/fonts
+
+      - name: Download Pandoc
+        run: |
+          $url = "https://github.com/jgm/pandoc/releases/download/${{ env.PANDOC_VERSION }}/pandoc-${{ env.PANDOC_VERSION }}-windows-x86_64.zip"
+          Invoke-WebRequest -Uri $url -OutFile pandoc.zip
+          Expand-Archive -Path pandoc.zip -DestinationPath temp_pandoc
+          Copy-Item "temp_pandoc/pandoc-${{ env.PANDOC_VERSION }}/pandoc.exe" -Destination dist/doc_exporter/pandoc/
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Build WeasyPrint standalone
+        run: |
+          pip install weasyprint==${{ env.WEASYPRINT_VERSION }} pyinstaller
+          pyinstaller --onefile --name weasyprint --collect-all weasyprint --hidden-import weasyprint.text.ffi --hidden-import cffi -y $(python -c "import weasyprint; print(weasyprint.__file__)")
+          Copy-Item "dist/weasyprint.exe" -Destination dist/doc_exporter/weasyprint/
+
+      - name: Copy scripts and assets
+        run: |
+          Copy-Item "convert-md-to-pdf-weasyprint.ps1" -Destination dist/doc_exporter/
+          Copy-Item "convert-md-to-pdf.ps1" -Destination dist/doc_exporter/
+          Copy-Item "style.css" -Destination dist/doc_exporter/
+          Copy-Item "weasyprint-style.css" -Destination dist/doc_exporter/
+          Copy-Item "fonts/*" -Destination dist/doc_exporter/fonts/ -Recurse -ErrorAction SilentlyContinue
+
+      - name: Create ZIP
+        run: |
+          Compress-Archive -Path dist/md2pdf -DestinationPath md2pdf-windows-x64.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: md2pdf-windows-x64
+          path: md2pdf-windows-x64.zip
+
+  # build-linux:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+
+  #     - name: Create directories
+  #       run: |
+  #         mkdir -p dist/doc_exporter/pandoc
+  #         mkdir -p dist/doc_exporter/weasyprint
+  #         mkdir -p dist/doc_exporter/fonts
+
+  #     - name: Download Pandoc
+  #       run: |
+  #         curl -L -o pandoc.tar.gz "https://github.com/jgm/pandoc/releases/download/${{ env.PANDOC_VERSION }}/pandoc-${{ env.PANDOC_VERSION }}-linux-amd64.tar.gz"
+  #         tar -xzf pandoc.tar.gz
+  #         cp pandoc-${{ env.PANDOC_VERSION }}/bin/pandoc dist/doc_exporter/pandoc/
+
+  #     - name: Install WeasyPrint dependencies
+  #       run: |
+  #         sudo apt-get update
+  #         sudo apt-get install -y libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf2.0-0 libffi-dev shared-mime-info
+
+  #     - name: Set up Python
+  #       uses: actions/setup-python@v5
+  #       with:
+  #         python-version: '3.11'
+
+  #     - name: Build WeasyPrint standalone
+  #       run: |
+  #         pip install weasyprint==${{ env.WEASYPRINT_VERSION }} pyinstaller
+
+  #         # Create a wrapper script for PyInstaller
+  #         cat > weasyprint_cli.py << 'EOF'
+  #         import sys
+  #         from weasyprint.__main__ import main
+  #         if __name__ == '__main__':
+  #             main()
+  #         EOF
+
+  #         pyinstaller --onefile --name weasyprint \
+  #           --collect-all weasyprint \
+  #           --hidden-import weasyprint.text.ffi \
+  #           --hidden-import cffi \
+  #           --hidden-import weasyprint.css.validation \
+  #           -y weasyprint_cli.py
+
+  #         cp dist/weasyprint dist/doc_exporter/weasyprint/
+
+  #     - name: Copy scripts and assets
+  #       run: |
+  #         cp convert-md-to-pdf-weasyprint.ps1 dist/doc_exporter/
+  #         cp convert-md-to-pdf.ps1 dist/doc_exporter/
+  #         cp style.css dist/doc_exporter/
+  #         cp weasyprint-style.css dist/doc_exporter/
+  #         cp -r fonts/* dist/doc_exporter/fonts/ 2>/dev/null || true
+
+  #         # Create bash wrapper script for Linux
+  #         cat > dist/doc_exporter/convert-md-to-pdf.sh << 'EOF'
+  #         #!/bin/bash
+  #         SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+  #         if [ -z "$1" ]; then
+  #             echo "Usage: $0 <input.md> [output_dir]"
+  #             exit 1
+  #         fi
+
+  #         INPUT_FILE="$1"
+  #         OUTPUT_DIR="${2:-$(dirname "$INPUT_FILE")}"
+  #         BASENAME=$(basename "$INPUT_FILE" .md)
+  #         HTML_FILE="$OUTPUT_DIR/$BASENAME.html"
+  #         PDF_FILE="$OUTPUT_DIR/$BASENAME.pdf"
+
+  #         echo "Converting: $INPUT_FILE -> $PDF_FILE"
+
+  #         # Step 1: Markdown to HTML
+  #         "$SCRIPT_DIR/pandoc/pandoc" "$INPUT_FILE" -f gfm -o "$HTML_FILE" \
+  #             --css="$SCRIPT_DIR/style.css" --standalone --embed-resources
+
+  #         # Step 2: HTML to PDF
+  #         "$SCRIPT_DIR/weasyprint/weasyprint" "$HTML_FILE" "$PDF_FILE" \
+  #             --stylesheet "$SCRIPT_DIR/weasyprint-style.css" --quiet
+
+  #         # Cleanup
+  #         rm -f "$HTML_FILE"
+
+  #         echo "Success: Created $PDF_FILE"
+  #         EOF
+  #         chmod +x dist/doc_exporter/convert-md-to-pdf.sh
+
+  #     - name: Create tarball
+  #       run: |
+  #         cd dist && tar -czvf ../doc_exporter-linux-x64.tar.gz doc_exporter
+
+  #     - name: Upload artifact
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: doc_exporter-linux-x64
+  #         path: doc_exporter-linux-x64.tar.gz
+
+  # build-macos:
+  #   runs-on: macos-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+
+  #     - name: Create directories
+  #       run: |
+  #         mkdir -p dist/doc_exporter/pandoc
+  #         mkdir -p dist/doc_exporter/weasyprint
+  #         mkdir -p dist/doc_exporter/fonts
+
+  #     - name: Download Pandoc
+  #       run: |
+  #         curl -L -o pandoc.zip "https://github.com/jgm/pandoc/releases/download/${{ env.PANDOC_VERSION }}/pandoc-${{ env.PANDOC_VERSION }}-x86_64-macOS.zip"
+  #         unzip pandoc.zip
+  #         cp pandoc-${{ env.PANDOC_VERSION }}-x86_64/bin/pandoc dist/doc_exporter/pandoc/
+
+  #     - name: Install WeasyPrint dependencies
+  #       run: |
+  #         brew install pango libffi
+
+  #     - name: Set up Python
+  #       uses: actions/setup-python@v5
+  #       with:
+  #         python-version: '3.11'
+
+  #     - name: Build WeasyPrint standalone
+  #       run: |
+  #         pip install weasyprint==${{ env.WEASYPRINT_VERSION }} pyinstaller
+
+  #         # Create a wrapper script for PyInstaller
+  #         cat > weasyprint_cli.py << 'EOF'
+  #         import sys
+  #         from weasyprint.__main__ import main
+  #         if __name__ == '__main__':
+  #             main()
+  #         EOF
+
+  #         pyinstaller --onefile --name weasyprint \
+  #           --collect-all weasyprint \
+  #           --hidden-import weasyprint.text.ffi \
+  #           --hidden-import cffi \
+  #           --hidden-import weasyprint.css.validation \
+  #           -y weasyprint_cli.py
+
+  #         cp dist/weasyprint dist/doc_exporter/weasyprint/
+
+  #     - name: Copy scripts and assets
+  #       run: |
+  #         cp convert-md-to-pdf-weasyprint.ps1 dist/doc_exporter/
+  #         cp convert-md-to-pdf.ps1 dist/doc_exporter/
+  #         cp style.css dist/doc_exporter/
+  #         cp weasyprint-style.css dist/doc_exporter/
+  #         cp -r fonts/* dist/doc_exporter/fonts/ 2>/dev/null || true
+
+  #         # Create bash wrapper script for macOS
+  #         cat > dist/doc_exporter/convert-md-to-pdf.sh << 'EOF'
+  #         #!/bin/bash
+  #         SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+  #         if [ -z "$1" ]; then
+  #             echo "Usage: $0 <input.md> [output_dir]"
+  #             exit 1
+  #         fi
+
+  #         INPUT_FILE="$1"
+  #         OUTPUT_DIR="${2:-$(dirname "$INPUT_FILE")}"
+  #         BASENAME=$(basename "$INPUT_FILE" .md)
+  #         HTML_FILE="$OUTPUT_DIR/$BASENAME.html"
+  #         PDF_FILE="$OUTPUT_DIR/$BASENAME.pdf"
+
+  #         echo "Converting: $INPUT_FILE -> $PDF_FILE"
+
+  #         # Step 1: Markdown to HTML
+  #         "$SCRIPT_DIR/pandoc/pandoc" "$INPUT_FILE" -f gfm -o "$HTML_FILE" \
+  #             --css="$SCRIPT_DIR/style.css" --standalone --embed-resources
+
+  #         # Step 2: HTML to PDF
+  #         "$SCRIPT_DIR/weasyprint/weasyprint" "$HTML_FILE" "$PDF_FILE" \
+  #             --stylesheet "$SCRIPT_DIR/weasyprint-style.css" --quiet
+
+  #         # Cleanup
+  #         rm -f "$HTML_FILE"
+
+  #         echo "Success: Created $PDF_FILE"
+  #         EOF
+  #         chmod +x dist/doc_exporter/convert-md-to-pdf.sh
+
+  #     - name: Create ZIP
+  #       run: |
+  #         cd dist && zip -r ../doc_exporter-macos-x64.zip doc_exporter
+
+  #     - name: Upload artifact
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: doc_exporter-macos-x64
+  #         path: doc_exporter-macos-x64.zip
+
+  create-release:
+    needs: [build-windows, build-linux, build-macos]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            artifacts/doc_exporter-windows-x64/doc_exporter-windows-x64.zip
+            artifacts/doc_exporter-linux-x64/doc_exporter-linux-x64.tar.gz
+            artifacts/doc_exporter-macos-x64/doc_exporter-macos-x64.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
