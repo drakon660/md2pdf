@@ -263,7 +263,7 @@ jobs:
   #         path: doc_exporter-macos-x64.zip
 
   create-release:
-    needs: [build-windows, build-linux, build-macos]
+    needs: [build-windows]
     runs-on: ubuntu-latest
     if: github.event_name == 'release'
     steps:
@@ -276,8 +276,6 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            artifacts/doc_exporter-windows-x64/doc_exporter-windows-x64.zip
-            artifacts/doc_exporter-linux-x64/doc_exporter-linux-x64.tar.gz
-            artifacts/doc_exporter-macos-x64/doc_exporter-macos-x64.zip
+            artifacts/doc_exporter-windows-x64/md2pdf-windows-x64.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
