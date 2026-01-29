@@ -1,0 +1,59 @@
+/* WeasyPrint-specific styles for PDF generation */
+
+/* Page setup with footer for page numbers */
+@page {
+    size: A4;
+    margin: 20mm 25mm 25mm 25mm;
+
+    @bottom-center {
+        content: "Page " counter(page) " of " counter(pages);
+        font-family: 'DejaVu Sans', Arial, sans-serif;
+        font-size: 9pt;
+        color: #666;
+    }
+}
+
+/* First page can have different styling if needed */
+@page:first {
+    margin-top: 20mm;
+}
+
+/* Avoid page breaks inside these elements */
+pre, code, table, blockquote {
+    break-inside: avoid;
+}
+
+/* Keep headings with their following content */
+h1, h2, h3, h4, h5, h6 {
+    break-after: avoid;
+}
+
+/* Ensure images don't break across pages */
+img {
+    break-inside: avoid;
+    max-width: 100%;
+}
+
+/* Better table handling for print */
+table {
+    break-inside: auto;
+}
+
+tr {
+    break-inside: avoid;
+    break-after: auto;
+}
+
+thead {
+    display: table-header-group;
+}
+
+tfoot {
+    display: table-footer-group;
+}
+
+/* Ensure links are readable in print */
+a {
+    text-decoration: none;
+    color: #0066cc;
+}
