@@ -34,7 +34,7 @@ jobs:
           $url = "https://github.com/jgm/pandoc/releases/download/${{ env.PANDOC_VERSION }}/pandoc-${{ env.PANDOC_VERSION }}-windows-x86_64.zip"
           Invoke-WebRequest -Uri $url -OutFile pandoc.zip
           Expand-Archive -Path pandoc.zip -DestinationPath temp_pandoc
-          Copy-Item "temp_pandoc/pandoc-${{ env.PANDOC_VERSION }}/pandoc.exe" -Destination dist/doc_exporter/pandoc/
+          Copy-Item "temp_pandoc/pandoc-${{ env.PANDOC_VERSION }}/pandoc.exe" -Destination dist/md2pdf/pandoc/
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -45,15 +45,15 @@ jobs:
         run: |
           pip install weasyprint==${{ env.WEASYPRINT_VERSION }} pyinstaller
           pyinstaller --onefile --name weasyprint --collect-all weasyprint --hidden-import weasyprint.text.ffi --hidden-import cffi -y $(python -c "import weasyprint; print(weasyprint.__file__)")
-          Copy-Item "dist/weasyprint.exe" -Destination dist/doc_exporter/weasyprint/
+          Copy-Item "dist/weasyprint.exe" -Destination dist/md2pdf/weasyprint/
 
       - name: Copy scripts and assets
         run: |
-          Copy-Item "convert-md-to-pdf-weasyprint.ps1" -Destination dist/doc_exporter/
-          Copy-Item "convert-md-to-pdf.ps1" -Destination dist/doc_exporter/
-          Copy-Item "style.css" -Destination dist/doc_exporter/
-          Copy-Item "weasyprint-style.css" -Destination dist/doc_exporter/
-          Copy-Item "fonts/*" -Destination dist/doc_exporter/fonts/ -Recurse -ErrorAction SilentlyContinue
+          Copy-Item "convert-md-to-pdf-weasyprint.ps1" -Destination dist/md2pdf/
+          Copy-Item "convert-md-to-pdf.ps1" -Destination dist/md2pdf/
+          Copy-Item "style.css" -Destination dist/md2pdf/
+          Copy-Item "weasyprint-style.css" -Destination dist/md2pdf/
+          Copy-Item "fonts/*" -Destination dist/md2pdf/fonts/ -Recurse -ErrorAction SilentlyContinue
 
       - name: Create ZIP
         run: |
@@ -263,7 +263,7 @@ jobs:
   #         path: doc_exporter-macos-x64.zip
 
   create-release:
-    needs: [build-windows, build-linux, build-macos]
+    needs: [build-windows]
     runs-on: ubuntu-latest
     if: github.event_name == 'release'
     steps:
@@ -276,8 +276,6 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            artifacts/doc_exporter-windows-x64/doc_exporter-windows-x64.zip
-            artifacts/doc_exporter-linux-x64/doc_exporter-linux-x64.tar.gz
-            artifacts/doc_exporter-macos-x64/doc_exporter-macos-x64.zip
+            artifacts/doc_exporter-windows-x64/md2pdf-windows-x64.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
