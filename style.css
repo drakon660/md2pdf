@@ -45,11 +45,13 @@ body {
     max-width: 1000px;
     margin: 0 auto;
     padding: 20px;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
 }
 
 /* Headings */
 h1 {
-    font-size: 28pt;
+    font-size: 16pt;
     font-weight: 700;
     color: #1a1a1a;
     border-bottom: 3px solid #0066cc;
@@ -59,7 +61,7 @@ h1 {
 }
 
 h2 {
-    font-size: 20pt;
+    font-size: 14pt;
     font-weight: 600;
     color: #2c3e50;
     margin-top: 25px;
@@ -69,7 +71,7 @@ h2 {
 }
 
 h3 {
-    font-size: 16pt;
+    font-size: 11pt;
     font-weight: 600;
     color: #34495e;
     margin-top: 20px;
@@ -77,7 +79,7 @@ h3 {
 }
 
 h4 {
-    font-size: 13pt;
+    font-size: 9pt;
     font-weight: 600;
     color: #5a6c7d;
     margin-top: 15px;
@@ -151,6 +153,8 @@ ul, ol {
 li {
     margin: 5px 0;
     line-height: 1.6;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
 }
 
 /* Blockquotes */
@@ -195,4 +199,6 @@ em {
 /* Paragraphs */
 p {
     margin: 10px 0;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
 }

@@ -3,7 +3,7 @@
 /* Page setup with footer for page numbers */
 @page {
     size: A4;
-    margin: 20mm 25mm 25mm 25mm;
+    margin: 15mm 22mm 22mm 22mm;
 
     @bottom-center {
         content: "Page " counter(page) " of " counter(pages);
@@ -19,7 +19,7 @@
 }
 
 /* Avoid page breaks inside these elements */
-pre, code, table, blockquote {
+pre, code, blockquote {
     break-inside: avoid;
 }
 
@@ -34,14 +34,13 @@ img {
     max-width: 100%;
 }
 
-/* Better table handling for print */
+/* Table handling for print - keep tables together on one page */
 table {
-    break-inside: auto;
+    break-inside: avoid;
 }
 
 tr {
     break-inside: avoid;
-    break-after: auto;
 }
 
 thead {

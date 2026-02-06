@@ -30,7 +30,6 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path dist/pandoc
           New-Item -ItemType Directory -Force -Path dist/weasyprint
-          New-Item -ItemType Directory -Force -Path dist/mmdr
           New-Item -ItemType Directory -Force -Path dist/fonts
 
       - name: Download Pandoc
@@ -69,21 +68,6 @@ jobs:
             exit 1
           }
 
-      - name: Download mermaid-rs-renderer (mmdr)
-        run: |
-          $url = "https://github.com/1jehuang/mermaid-rs-renderer/releases/download/v0.1.3/mmdr-x86_64-pc-windows-msvc.zip"
-          Write-Host "Downloading mmdr from: $url"
-          Invoke-WebRequest -Uri $url -OutFile mmdr.zip
-          Expand-Archive -Path mmdr.zip -DestinationPath temp_mmdr
-
-          # Find and copy mmdr.exe to mmdr folder
-          $exe = Get-ChildItem -Path temp_mmdr -Recurse -Filter "mmdr.exe" | Select-Object -First 1
-          if ($exe) {
-            Write-Host "Found mmdr.exe at: $($exe.FullName)"
-            Copy-Item $exe.FullName -Destination dist/mmdr/
-          } else {
-            Write-Host "WARNING: mmdr.exe not found, mermaid diagrams will not be rendered"
-          }
 
       - name: Copy scripts and assets
         run: |
