@@ -68,6 +68,27 @@ jobs:
             exit 1
           }
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build mermaid-cli standalone
+        run: |
+          npm install @mermaid-js/mermaid-cli
+          npm install -g pkg
+
+          # Create wrapper for pkg
+          @"
+          #!/usr/bin/env node
+          require('@mermaid-js/mermaid-cli/src/cli.js');
+          "@ | Out-File -FilePath mmdc-wrapper.js -Encoding utf8
+
+          # Build standalone exe
+          pkg mmdc-wrapper.js --targets node20-win-x64 --output dist/mmdc.exe
+
+          Write-Host "mermaid-cli standalone built successfully"
+
       - name: Copy scripts and assets
         run: |
           Copy-Item "convert-md-to-pdf-weasyprint.ps1" -Destination dist/

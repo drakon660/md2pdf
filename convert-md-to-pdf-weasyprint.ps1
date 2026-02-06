@@ -53,9 +53,15 @@ function Get-BundledPaths {
         Mmdc = $null
     }
 
-    $bundledMmdc = Join-Path $ScriptDir "node_modules\.bin\mmdc.cmd"
-    if (Test-Path $bundledMmdc) {
-        $paths.Mmdc = $bundledMmdc
+    # Look for mmdc: bundled exe, local node_modules, or system PATH
+    $bundledExe = Join-Path $ScriptDir "mmdc.exe"
+    $bundledCmd = Join-Path $ScriptDir "node_modules\.bin\mmdc.cmd"
+
+    if (Test-Path $bundledExe) {
+        $paths.Mmdc = $bundledExe
+    }
+    elseif (Test-Path $bundledCmd) {
+        $paths.Mmdc = $bundledCmd
     }
     elseif (Get-Command "mmdc" -ErrorAction SilentlyContinue) {
         $paths.Mmdc = "mmdc"
