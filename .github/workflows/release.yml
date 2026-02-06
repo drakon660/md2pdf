@@ -42,16 +42,29 @@ jobs:
       - name: Download WeasyPrint
         run: |
           $url = "https://github.com/Kozea/WeasyPrint/releases/download/v${{ env.WEASYPRINT_VERSION }}.0/weasyprint-windows.zip"
+          Write-Host "Downloading from: $url"
           Invoke-WebRequest -Uri $url -OutFile weasyprint.zip
+
+          Write-Host "Zip file size: $((Get-Item weasyprint.zip).Length) bytes"
+
+          Write-Host "Extracting..."
           Expand-Archive -Path weasyprint.zip -DestinationPath temp_weasyprint
 
-          # Find weasyprint.exe wherever it is and copy to target
+          Write-Host "=== Contents of temp_weasyprint ==="
+          Get-ChildItem -Path temp_weasyprint -Recurse | ForEach-Object { Write-Host $_.FullName }
+          Write-Host "=== End of contents ==="
+
+          Write-Host "Searching for weasyprint.exe..."
           $exe = Get-ChildItem -Path temp_weasyprint -Recurse -Filter "weasyprint.exe" | Select-Object -First 1
           if ($exe) {
-            Write-Host "Found: $($exe.FullName)"
+            Write-Host "Found weasyprint.exe at: $($exe.FullName)"
+            Write-Host "Copying to: dist/md2pdf/weasyprint/"
             Copy-Item $exe.FullName -Destination dist/md2pdf/weasyprint/
+            Write-Host "Copy successful"
           } else {
-            Write-Error "weasyprint.exe not found in extracted archive"
+            Write-Host "ERROR: weasyprint.exe not found!"
+            Write-Host "Listing all .exe files in temp_weasyprint:"
+            Get-ChildItem -Path temp_weasyprint -Recurse -Filter "*.exe" | ForEach-Object { Write-Host $_.FullName }
             exit 1
           }
 
