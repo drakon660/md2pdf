@@ -71,7 +71,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Build mermaid-cli standalone
         run: |
@@ -85,7 +85,7 @@ jobs:
           "@ | Out-File -FilePath mmdc-wrapper.js -Encoding utf8
 
           # Build standalone exe
-          pkg mmdc-wrapper.js --targets node20-win-x64 --output dist/mmdc.exe
+          pkg mmdc-wrapper.js --targets node22-win-x64 --output dist/mmdc.exe
 
           Write-Host "mermaid-cli standalone built successfully"
 
