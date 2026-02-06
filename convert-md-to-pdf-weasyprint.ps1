@@ -50,21 +50,17 @@ function Get-BundledPaths {
     $paths = @{
         Pandoc = Join-Path $ScriptDir "pandoc\pandoc.exe"
         WeasyPrint = Join-Path $ScriptDir "weasyprint\weasyprint.exe"
-        Mmdc = $null
+        Mmdr = $null
     }
 
-    # Look for mmdc: bundled exe, local node_modules, or system PATH
-    $bundledExe = Join-Path $ScriptDir "mmdc.exe"
-    $bundledCmd = Join-Path $ScriptDir "node_modules\.bin\mmdc.cmd"
+    # Look for mmdr: bundled exe or system PATH
+    $bundledMmdr = Join-Path $ScriptDir "mmdr\mmdr.exe"
 
-    if (Test-Path $bundledExe) {
-        $paths.Mmdc = $bundledExe
+    if (Test-Path $bundledMmdr) {
+        $paths.Mmdr = $bundledMmdr
     }
-    elseif (Test-Path $bundledCmd) {
-        $paths.Mmdc = $bundledCmd
-    }
-    elseif (Get-Command "mmdc" -ErrorAction SilentlyContinue) {
-        $paths.Mmdc = "mmdc"
+    elseif (Get-Command "mmdr" -ErrorAction SilentlyContinue) {
+        $paths.Mmdr = "mmdr"
     }
 
     return $paths
@@ -91,7 +87,7 @@ function Test-BundledToolsExist {
 function Convert-MermaidInHtml {
     param(
         [string]$HtmlFile,
-        [string]$MmdcPath,
+        [string]$MmdrPath,
         [bool]$KeepTemp = $false
     )
 
@@ -99,11 +95,14 @@ function Convert-MermaidInHtml {
     $pattern = '(?ms)<pre class="mermaid"><code>(.*?)</code></pre>'
     $htmlMatches = [regex]::Matches($html, $pattern)
 
-    if ($htmlMatches.Count -eq 0 -or -not $MmdcPath) {
-        if ($htmlMatches.Count -gt 0 -and -not $MmdcPath) {
-            Write-Host "  Warning: Mermaid blocks found but mmdc is not available. Install with: npm install -g @mermaid-js/mermaid-cli" -ForegroundColor Yellow
-        }
+    if ($htmlMatches.Count -eq 0) {
         return
+    }
+
+    if (-not $MmdrPath) {
+        Write-Host "  Error: Mermaid blocks found but mmdr is not available." -ForegroundColor Red
+        Write-Host "  Install with: scoop bucket add mmdr https://github.com/1jehuang/scoop-mmdr && scoop install mmdr" -ForegroundColor Red
+        throw "mmdr not found - cannot render Mermaid diagrams"
     }
 
     Write-Host "  Rendering $($htmlMatches.Count) Mermaid diagram(s)..." -ForegroundColor Gray
@@ -119,7 +118,9 @@ function Convert-MermaidInHtml {
         $pngFile = Join-Path $tempDir "diagram-$index.png"
 
         Set-Content -Path $mmdFile -Value $mermaidCode -Encoding UTF8 -NoNewline
-        & $MmdcPath -i $mmdFile -o $pngFile -b white --quiet 2>$null
+
+        # mmdr: -i input -o output -e format
+        & $MmdrPath -i $mmdFile -o $pngFile -e png 2>$null
 
         if (($LASTEXITCODE -eq 0) -and (Test-Path $pngFile)) {
             $pngBytes = [System.IO.File]::ReadAllBytes($pngFile)
@@ -178,7 +179,7 @@ function Convert-MarkdownToPdf {
         }
 
         # Step 1.5: Render Mermaid diagrams in HTML (if mmdc is available)
-        Convert-MermaidInHtml -HtmlFile $htmlFile -MmdcPath $ToolPaths.Mmdc -KeepTemp $KeepTempFiles
+        Convert-MermaidInHtml -HtmlFile $htmlFile -MmdrPath $ToolPaths.Mmdr -KeepTemp $KeepTempFiles
 
         # Step 2: Convert HTML to PDF using WeasyPrint
         Write-Host "  Step 2: Converting HTML to PDF with WeasyPrint..." -ForegroundColor Gray
@@ -241,11 +242,11 @@ try {
     Write-Host "Using bundled tools:" -ForegroundColor Gray
     Write-Host "  Pandoc: $($ToolPaths.Pandoc)" -ForegroundColor Gray
     Write-Host "  WeasyPrint: $($ToolPaths.WeasyPrint)" -ForegroundColor Gray
-    if ($ToolPaths.Mmdc) {
-        Write-Host "  Mermaid CLI: $($ToolPaths.Mmdc)" -ForegroundColor Gray
+    if ($ToolPaths.Mmdr) {
+        Write-Host "  Mermaid (mmdr): $($ToolPaths.Mmdr)" -ForegroundColor Gray
     }
     else {
-        Write-Host "  Mermaid CLI: Not found (diagrams will render as code)" -ForegroundColor DarkYellow
+        Write-Host "  Mermaid (mmdr): Not found (diagrams will render as code)" -ForegroundColor DarkYellow
     }
     Write-Host ""
 
