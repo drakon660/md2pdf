@@ -44,7 +44,8 @@ jobs:
           $url = "https://github.com/Kozea/WeasyPrint/releases/download/v${{ env.WEASYPRINT_VERSION }}.0/weasyprint-windows.zip"
           Invoke-WebRequest -Uri $url -OutFile weasyprint.zip
           Expand-Archive -Path weasyprint.zip -DestinationPath temp_weasyprint
-          Copy-Item "temp_weasyprint/*" -Destination dist/md2pdf/weasyprint/ -Recurse
+          # WeasyPrint extracts to weasyprint/dist/weasyprint.exe - copy just the exe
+          Copy-Item "temp_weasyprint/weasyprint/dist/weasyprint.exe" -Destination dist/md2pdf/weasyprint/
 
       - name: Copy scripts and assets
         run: |
