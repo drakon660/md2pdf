@@ -50,7 +50,7 @@ jobs:
           # Find weasyprint.exe and copy it
           $exe = Get-ChildItem -Path temp_weasyprint -Recurse -Filter "weasyprint.exe" | Select-Object -First 1
           Copy-Item $exe.FullName -Destination dist/md2pdf/weasyprint/
-
+          Copy-Item "temp_weasyprint/weasyprint/dist/weasyprint.exe" -Destination dist/md2pdf/weasyprint/
 
       - name: Copy scripts and assets
         run: |
