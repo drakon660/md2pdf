@@ -71,8 +71,11 @@ jobs:
       - name: Copy scripts and assets
         run: |
           Copy-Item "convert-md-to-pdf-weasyprint.ps1" -Destination dist/md2pdf/
+          Copy-Item "convert.bat" -Destination dist/md2pdf/
           Copy-Item "weasyprint-style.css" -Destination dist/md2pdf/
+          Copy-Item "style.css" -Destination dist/md2pdf/
           Copy-Item "footer.html" -Destination dist/md2pdf/
+          Copy-Item "fonts\*" -Destination dist/md2pdf/fonts/ -Recurse
 
       - name: Create ZIP
         run: |
