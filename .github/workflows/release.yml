@@ -45,12 +45,15 @@ jobs:
           Invoke-WebRequest -Uri $url -OutFile weasyprint.zip
           Expand-Archive -Path weasyprint.zip -DestinationPath temp_weasyprint
 
-          # List contents to see structure
-          Get-ChildItem -Path temp_weasyprint -Recurse | Select-Object FullName
-          # Find weasyprint.exe and copy it
+          # Find weasyprint.exe wherever it is and copy to target
           $exe = Get-ChildItem -Path temp_weasyprint -Recurse -Filter "weasyprint.exe" | Select-Object -First 1
-          Copy-Item $exe.FullName -Destination dist/md2pdf/weasyprint/
-          Copy-Item "temp_weasyprint/weasyprint/dist/weasyprint.exe" -Destination dist/md2pdf/weasyprint/
+          if ($exe) {
+            Write-Host "Found: $($exe.FullName)"
+            Copy-Item $exe.FullName -Destination dist/md2pdf/weasyprint/
+          } else {
+            Write-Error "weasyprint.exe not found in extracted archive"
+            exit 1
+          }
 
       - name: Copy scripts and assets
         run: |
