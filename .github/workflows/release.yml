@@ -28,16 +28,16 @@ jobs:
 
       - name: Create directories
         run: |
-          New-Item -ItemType Directory -Force -Path dist/md2pdf/pandoc
-          New-Item -ItemType Directory -Force -Path dist/md2pdf/weasyprint
-          New-Item -ItemType Directory -Force -Path dist/md2pdf/fonts
+          New-Item -ItemType Directory -Force -Path dist/pandoc
+          New-Item -ItemType Directory -Force -Path dist/weasyprint
+          New-Item -ItemType Directory -Force -Path dist/fonts
 
       - name: Download Pandoc
         run: |
           $url = "https://github.com/jgm/pandoc/releases/download/${{ env.PANDOC_VERSION }}/pandoc-${{ env.PANDOC_VERSION }}-windows-x86_64.zip"
           Invoke-WebRequest -Uri $url -OutFile pandoc.zip
           Expand-Archive -Path pandoc.zip -DestinationPath temp_pandoc
-          Copy-Item "temp_pandoc/pandoc-${{ env.PANDOC_VERSION }}/pandoc.exe" -Destination dist/md2pdf/pandoc/
+          Copy-Item "temp_pandoc/pandoc-${{ env.PANDOC_VERSION }}/pandoc.exe" -Destination dist/pandoc/
 
       - name: Download WeasyPrint
         run: |
@@ -58,8 +58,8 @@ jobs:
           $exe = Get-ChildItem -Path temp_weasyprint -Recurse -Filter "weasyprint.exe" | Select-Object -First 1
           if ($exe) {
             Write-Host "Found weasyprint.exe at: $($exe.FullName)"
-            Write-Host "Copying to: dist/md2pdf/weasyprint/"
-            Copy-Item $exe.FullName -Destination dist/md2pdf/weasyprint/
+            Write-Host "Copying to: dist/weasyprint/"
+            Copy-Item $exe.FullName -Destination dist/weasyprint/
             Write-Host "Copy successful"
           } else {
             Write-Host "ERROR: weasyprint.exe not found!"
@@ -70,16 +70,16 @@ jobs:
 
       - name: Copy scripts and assets
         run: |
-          Copy-Item "convert-md-to-pdf-weasyprint.ps1" -Destination dist/md2pdf/
-          Copy-Item "convert.bat" -Destination dist/md2pdf/
-          Copy-Item "weasyprint-style.css" -Destination dist/md2pdf/
-          Copy-Item "style.css" -Destination dist/md2pdf/
-          Copy-Item "footer.html" -Destination dist/md2pdf/
-          Copy-Item "fonts\*" -Destination dist/md2pdf/fonts/ -Recurse
+          Copy-Item "convert-md-to-pdf-weasyprint.ps1" -Destination dist/
+          Copy-Item "convert.bat" -Destination dist/
+          Copy-Item "weasyprint-style.css" -Destination dist/
+          Copy-Item "style.css" -Destination dist/
+          Copy-Item "footer.html" -Destination dist/
+          Copy-Item "fonts\*" -Destination dist/fonts/ -Recurse
 
       - name: Create ZIP
         run: |
-          Compress-Archive -Path dist/md2pdf -DestinationPath md2pdf-windows-x64.zip
+          Compress-Archive -Path dist/* -DestinationPath md2pdf-windows-x64.zip
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
