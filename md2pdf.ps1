@@ -37,10 +37,7 @@ param(
     [string]$OutputPath,
 
     [Parameter(Mandatory=$false)]
-    [switch]$Recursive,
-
-    [Parameter(Mandatory=$false)]
-    [switch]$KeepTempFiles
+    [switch]$Recursive
 )
 
 # Get paths to bundled executables
@@ -53,6 +50,7 @@ function Get-BundledPaths {
         Mmdc = $null
     }
 
+    # Look for mmdc (mermaid-cli) in bundled location, then PATH
     $bundledMmdc = Join-Path $ScriptDir "node_modules\.bin\mmdc.cmd"
     if (Test-Path $bundledMmdc) {
         $paths.Mmdc = $bundledMmdc
@@ -81,57 +79,69 @@ function Test-BundledToolsExist {
     return ($pandocExists -and $weasyprintExists)
 }
 
-# Post-process HTML: render Mermaid code blocks to PNG and replace in HTML
-function Convert-MermaidInHtml {
+# Pre-process Mermaid code blocks: render to SVG and replace with image references
+function ConvertTo-MermaidProcessedMarkdown {
     param(
-        [string]$HtmlFile,
-        [string]$MmdcPath,
-        [bool]$KeepTemp = $false
+        [string]$MarkdownFile,
+        [string]$OutputDir,
+        [string]$MmdcPath
     )
 
-    $html = Get-Content $HtmlFile -Raw -Encoding UTF8
-    $pattern = '(?ms)<pre class="mermaid"><code>(.*?)</code></pre>'
-    $htmlMatches = [regex]::Matches($html, $pattern)
+    $content = Get-Content $MarkdownFile -Raw -Encoding UTF8
+    $mermaidPattern = '(?ms)```mermaid\s*\r?\n(.*?)```'
+    $matches = [regex]::Matches($content, $mermaidPattern)
 
-    if ($htmlMatches.Count -eq 0 -or -not $MmdcPath) {
-        if ($htmlMatches.Count -gt 0 -and -not $MmdcPath) {
-            Write-Host "  Warning: Mermaid blocks found but mmdc is not available. Install with: npm install -g @mermaid-js/mermaid-cli" -ForegroundColor Yellow
-        }
-        return
+    if ($matches.Count -eq 0) {
+        return $null  # No mermaid blocks, skip pre-processing
     }
 
-    Write-Host "  Rendering $($htmlMatches.Count) Mermaid diagram(s)..." -ForegroundColor Gray
+    if (-not $MmdcPath) {
+        Write-Host "  Warning: Mermaid blocks found but mmdc (mermaid-cli) is not available. Diagrams will render as code." -ForegroundColor Yellow
+        Write-Host "  Install with: npm install -g @mermaid-js/mermaid-cli" -ForegroundColor Yellow
+        return $null
+    }
 
-    $tempDir = Join-Path ([System.IO.Path]::GetDirectoryName($HtmlFile)) "mermaid-temp"
+    Write-Host "  Pre-processing: Found $($matches.Count) Mermaid diagram(s)..." -ForegroundColor Gray
+
+    $fileName = [System.IO.Path]::GetFileNameWithoutExtension($MarkdownFile)
+    $tempDir = Join-Path $OutputDir "mermaid-temp-$fileName"
     New-Item -Path $tempDir -ItemType Directory -Force | Out-Null
 
-    $index = 0
-    foreach ($m in $htmlMatches) {
-        $index++
-        $mermaidCode = [System.Web.HttpUtility]::HtmlDecode($m.Groups[1].Value)
-        $mmdFile = Join-Path $tempDir "diagram-$index.mmd"
-        $pngFile = Join-Path $tempDir "diagram-$index.png"
+    $diagramIndex = 0
+    $processedContent = $content
 
+    foreach ($match in $matches) {
+        $diagramIndex++
+        $mermaidCode = $match.Groups[1].Value
+        $mmdFile = Join-Path $tempDir "diagram-$diagramIndex.mmd"
+        $pngFile = Join-Path $tempDir "diagram-$diagramIndex.png"
+
+        # Write mermaid source to temp file
         Set-Content -Path $mmdFile -Value $mermaidCode -Encoding UTF8 -NoNewline
-        & $MmdcPath -i $mmdFile -o $pngFile -b white --quiet 2>$null
+
+        # Render to PNG using mmdc (PNG ensures text is rasterized and always visible)
+        $mmdcArgs = @("-i", $mmdFile, "-o", $pngFile, "-b", "white", "-s", "2", "--quiet")
+        & $MmdcPath @mmdcArgs 2>$null
 
         if (($LASTEXITCODE -eq 0) -and (Test-Path $pngFile)) {
-            $pngBytes = [System.IO.File]::ReadAllBytes($pngFile)
-            $base64 = [System.Convert]::ToBase64String($pngBytes)
-            $imgTag = "<img src=`"data:image/png;base64,$base64`" alt=`"Mermaid diagram`" style=`"max-width:450px; display:block; margin:1em auto`" />"
-            $html = $html.Replace($m.Value, $imgTag)
+            # Replace the mermaid block with an img tag referencing the PNG
+            # Use forward slashes for Pandoc compatibility on Windows
+            $pngAbsolute = (Resolve-Path $pngFile).Path.Replace('\', '/')
+            $imgTag = "![]($pngAbsolute)"
+            $processedContent = $processedContent.Replace($match.Value, $imgTag)
         }
         else {
-            Write-Host "    Warning: Failed to render Mermaid diagram $index" -ForegroundColor Yellow
+            Write-Host "    Warning: Failed to render Mermaid diagram $diagramIndex, keeping as code block." -ForegroundColor Yellow
         }
     }
 
-    Set-Content -Path $HtmlFile -Value $html -Encoding UTF8 -NoNewline
-    if ($KeepTemp) {
-        Write-Host "  Debug: Mermaid temp files kept at $tempDir" -ForegroundColor Magenta
-    }
-    else {
-        Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+    # Write the processed markdown to a temp file
+    $processedMdFile = Join-Path $OutputDir "mermaid-processed-$fileName.md"
+    Set-Content -Path $processedMdFile -Value $processedContent -Encoding UTF8 -NoNewline
+
+    return @{
+        ProcessedFile = $processedMdFile
+        TempDir = $tempDir
     }
 }
 
@@ -149,30 +159,25 @@ function Convert-MarkdownToPdf {
     $htmlFile = Join-Path $OutputDir "$fileName.html"
     $pdfFile = Join-Path $OutputDir "$fileName.pdf"
 
-    # CSS files
-    $CssFile = Join-Path $ScriptDir "style.css"
+    # CSS file
     $PrintCssFile = Join-Path $ScriptDir "weasyprint-style.css"
 
     Write-Host "Converting: $MarkdownFile -> $pdfFile" -ForegroundColor Cyan
 
+    $mermaidResult = $null
     try {
-        # Step 1: Convert Markdown to HTML with embedded CSS
-        Write-Host "  Step 1: Creating HTML with embedded CSS..." -ForegroundColor Gray
+        # Step 0: Pre-process Mermaid diagrams (if any)
+        $mermaidResult = ConvertTo-MermaidProcessedMarkdown -MarkdownFile $MarkdownFile -OutputDir $OutputDir -MmdcPath $ToolPaths.Mmdc
+        $inputFile = if ($mermaidResult) { $mermaidResult.ProcessedFile } else { $MarkdownFile }
 
-        if (Test-Path $CssFile) {
-            & $ToolPaths.Pandoc $MarkdownFile -f gfm -o $htmlFile --css=$CssFile --standalone --embed-resources
-        } else {
-            Write-Host "  Warning: CSS file not found at $CssFile, creating HTML without custom styling" -ForegroundColor Yellow
-            & $ToolPaths.Pandoc $MarkdownFile -f gfm -o $htmlFile --standalone --embed-resources
-        }
+        # Step 1: Convert Markdown to HTML
+        Write-Host "  Step 1: Creating HTML..." -ForegroundColor Gray
+        & $ToolPaths.Pandoc $inputFile -f gfm -o $htmlFile --standalone --embed-resources
 
         if ($LASTEXITCODE -ne 0) {
             Write-Host "  Error: Pandoc failed to create HTML" -ForegroundColor Red
             return $false
         }
-
-        # Step 1.5: Render Mermaid diagrams in HTML (if mmdc is available)
-        Convert-MermaidInHtml -HtmlFile $htmlFile -MmdcPath $ToolPaths.Mmdc -KeepTemp $KeepTempFiles
 
         # Step 2: Convert HTML to PDF using WeasyPrint
         Write-Host "  Step 2: Converting HTML to PDF with WeasyPrint..." -ForegroundColor Gray
@@ -189,14 +194,9 @@ function Convert-MarkdownToPdf {
         if ($LASTEXITCODE -eq 0) {
             Write-Host "  Success: Created $pdfFile" -ForegroundColor Green
 
-            # Clean up intermediate HTML file
-            if ($KeepTempFiles) {
-                Write-Host "  Debug: HTML kept at $htmlFile" -ForegroundColor Magenta
-            }
-            else {
-                Write-Host "  Step 3: Cleaning up intermediate HTML file..." -ForegroundColor Gray
-                Remove-Item $htmlFile -ErrorAction SilentlyContinue
-            }
+            # Clean up intermediate files
+            Write-Host "  Step 3: Cleaning up intermediate files..." -ForegroundColor Gray
+            Remove-Item $htmlFile -ErrorAction SilentlyContinue
 
             return $true
         }
@@ -208,6 +208,15 @@ function Convert-MarkdownToPdf {
     catch {
         Write-Host "  Error: $($_.Exception.Message)" -ForegroundColor Red
         return $false
+    }
+    finally {
+        # Clean up Mermaid temp files
+        if ($mermaidResult) {
+            Remove-Item $mermaidResult.ProcessedFile -ErrorAction SilentlyContinue
+            if (Test-Path $mermaidResult.TempDir) {
+                Remove-Item $mermaidResult.TempDir -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
     }
 }
 
@@ -225,10 +234,10 @@ try {
     # Check if bundled tools exist
     if (-not (Test-BundledToolsExist -Paths $ToolPaths)) {
         Write-Host ""
-        Write-Host "Bundled tools not found. Ensure the following structure:" -ForegroundColor Yellow
-        Write-Host "  doc_exporter/" -ForegroundColor Yellow
-        Write-Host "    pandoc/pandoc.exe" -ForegroundColor Yellow
-        Write-Host "    weasyprint/weasyprint.exe" -ForegroundColor Yellow
+        Write-Host "Bundled tools not found. Ensure the following structure relative to this script:" -ForegroundColor Yellow
+        Write-Host "  pandoc/pandoc.exe" -ForegroundColor Yellow
+        Write-Host "  weasyprint/weasyprint.exe" -ForegroundColor Yellow
+        Write-Host "  weasyprint-style.css" -ForegroundColor Yellow
         exit 1
     }
 
@@ -239,7 +248,7 @@ try {
         Write-Host "  Mermaid CLI: $($ToolPaths.Mmdc)" -ForegroundColor Gray
     }
     else {
-        Write-Host "  Mermaid CLI: Not found (diagrams will render as code)" -ForegroundColor DarkYellow
+        Write-Host "  Mermaid CLI: Not found (Mermaid diagrams will render as code)" -ForegroundColor DarkYellow
     }
     Write-Host ""
 

@@ -1,0 +1,12 @@
+# Executables and bundled tools
+*.exe
+pandoc/
+weasyprint/
+node_modules/
+
+# Temp files
+mermaid-temp/
+*.html
+
+# Output
+*.pdf
